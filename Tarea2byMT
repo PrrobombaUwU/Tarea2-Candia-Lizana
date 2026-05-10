@@ -1,0 +1,235 @@
+#include <iostream>
+#include <string>
+using namespace std;
+
+class Linea {
+    struct Nodo {
+        Nodo* izquierda;
+        Nodo* derecha;
+        Nodo* padre;
+        string texto;
+        unsigned int peso;
+
+        Nodo(string txt = "") {
+            izquierda = nullptr;
+            derecha = nullptr;
+            padre = nullptr;
+            texto = txt;
+            peso = (unsigned int)txt.size();
+        }
+    };
+
+    Nodo* raiz;
+    int w;
+
+    void liberarMemoria(Nodo* nodo) {
+        if (nodo == nullptr) return;
+        liberarMemoria(nodo->izquierda);
+        liberarMemoria(nodo->derecha);
+        delete nodo;
+    }
+
+    bool esHoja(Nodo* nodo) const {
+        return (nodo->izquierda == nullptr && nodo->derecha == nullptr);
+    }
+
+    Nodo* buscarPosicion(Nodo* nodo, int posicion, int& posre) const {
+        if (nodo == nullptr) return nullptr;
+
+        if (esHoja(nodo)) {
+            if (posicion < (int)nodo->texto.size()) {
+                posre = posicion;
+                return nodo;
+            }
+            return nullptr;
+        }
+
+        if (posicion < (int)nodo->peso) {
+            return buscarPosicion(nodo->izquierda, posicion, posre);
+        } else {
+            return buscarPosicion(nodo->derecha, posicion - (int)nodo->peso, posre);
+        }
+    }
+
+    string strcortado(const string& cadena, int inicio, int longitud = -1) {
+    int tam = (int)cadena.size();
+
+    if (inicio < 0) {
+        inicio = std::max(0, tam + inicio);
+    }
+
+    if (inicio >= tam) return "";
+
+    if (longitud < 0 || inicio + longitud > tam) {
+        longitud = tam - inicio;
+    }
+
+    string resultado = "";
+    for (int i = inicio; i < inicio + longitud; i++) {
+        resultado += cadena[i];
+    }
+
+    return resultado;
+    }
+
+    void dividirNodo(Nodo* hoja) {
+        if ((int)hoja->texto.size() <= w) return;
+
+        int mitad = (int)hoja->texto.size() / 2;
+        string izqStr = strcortado(hoja->texto, 0, mitad);
+        string derStr = strcortado(hoja->texto, mitad);
+
+        Nodo* hijoIzq = new Nodo(izqStr);
+        Nodo* hijoDer = new Nodo(derStr);
+        hijoIzq->padre = hoja;
+        hijoDer->padre = hoja;
+
+        hoja->izquierda = hijoIzq;
+        hoja->derecha = hijoDer;
+        hoja->texto = "";
+        hoja->peso = (unsigned int)izqStr.size();
+
+        if ((int)hijoIzq->texto.size() > w) dividirNodo(hijoIzq);
+        if ((int)hijoDer->texto.size() > w) dividirNodo(hijoDer);
+    }
+
+
+    unsigned int pesoTotal(Nodo* nodo) const {
+        if (nodo == nullptr) return 0;
+        if (esHoja(nodo)) return nodo->peso;
+        return pesoTotal(nodo->izquierda) + pesoTotal(nodo->derecha);
+    }
+
+    void actualizarPesos(Nodo* nodo) {
+        while (nodo != nullptr) {
+            if (!esHoja(nodo)) {
+                nodo->peso = pesoTotal(nodo->izquierda);
+            }
+            nodo = nodo->padre;
+        }
+    }
+    Nodo* clonarArbol(Nodo* nodo, Nodo* padre) const {
+        if (nodo == nullptr) return nullptr;
+        Nodo* nuevo = new Nodo(nodo->texto);
+        nuevo->peso = nodo->peso;
+        nuevo->padre = padre;
+        nuevo->izquierda = clonarArbol(nodo->izquierda, nuevo);
+        nuevo->derecha = clonarArbol(nodo->derecha, nuevo);
+        return nuevo;
+    }
+
+public:
+    Linea(string str, int peso_max) {
+        w = peso_max;
+        raiz = construirDesdeString(str, nullptr);
+    }
+    ~Linea(void) {
+        liberarMemoria(raiz);
+        raiz = nullptr;
+    }
+    void insertar(int posicion, char caracter) {
+        if (raiz == nullptr) {
+            raiz = new Nodo(string(1, caracter));
+            return;
+        }
+
+        int pos0 = posicion - 1;
+        int posre = 0;
+        Nodo* hoja = buscarPosicion(raiz, pos0, posre);
+
+        if (hoja == nullptr) {
+            Nodo* actual = raiz;
+            while (!esHoja(actual)) {
+                actual = (actual->derecha != nullptr) ? actual->derecha : actual->izquierda;
+            }
+            actual->texto += caracter;
+            actual->peso++;
+            actualizarPesos(actual->padre);
+            if ((int)actual->texto.size() > w) {
+                dividirNodo(actual);
+                actualizarPesos(actual->padre);
+            }
+            return;
+        }
+        hoja->texto.insert(posre, 1, caracter);
+        hoja->peso = (unsigned int)hoja->texto.size();
+        actualizarPesos(hoja->padre);
+
+        if ((int)hoja->texto.size() > w) {
+            dividirNodo(hoja);
+            actualizarPesos(hoja->padre);
+        }
+    }
+    void concatenar(Linea* linea) {
+        if (linea == nullptr || linea->raiz == nullptr) return;
+
+        Nodo* nuevoRaiz = new Nodo();
+        nuevoRaiz->izquierda = raiz;
+        nuevoRaiz->derecha = clonarArbol(linea->raiz, nuevoRaiz);
+
+        if (raiz != nullptr) raiz->padre = nuevoRaiz;
+
+        nuevoRaiz->peso = pesoTotal(nuevoRaiz->izquierda);
+        raiz = nuevoRaiz;
+    }
+    void mostrarMenu(void) {
+    cout << "\n--- Menu ---" << endl;
+    cout << "1. Insertar caracter" << endl;
+    cout << "2. Eliminar caracter" << endl;
+    cout << "3. Concatenar texto" << endl;
+    cout << "4. Invertir" << endl;
+    cout << "5. Imprimir texto actual" << endl;
+    cout << "6. Salir" << endl;
+    cout << "Opcion: ";
+}
+
+int main(void) {
+    string textoInicial;
+    int w;
+
+    cout << "Ingrese el texto inicial: ";
+    getline(cin, textoInicial);
+
+    cout << "Ingrese el valor de w (tamano maximo por nodo hoja): ";
+    cin >> w;
+    cin.ignore();
+
+    Linea* linea = new Linea(textoInicial, w);
+
+    cout << "\nTexto actual: ";
+    linea->print();
+
+    int opcion = 0;
+    while (opcion != 6) {
+        mostrarMenu();
+        cin >> opcion;
+
+        if (opcion == 1) {
+            int posicion;
+            string entrada;
+            cout << "Posicion (1-indexada): ";
+            cin >> posicion;
+            cin.ignore();
+            cout << "Caracter a insertar: ";
+            getline(cin, entrada);
+            if (!entrada.empty()) {
+                linea->insertar(posicion, entrada[0]);
+                cout << "Texto actual: ";
+                linea->print();
+            }
+        }  else if (opcion == 3) {
+            string textoExtra;
+            cout << "Texto a concatenar: ";
+            cin.ignore();
+            getline(cin, textoExtra);
+            Linea* extra = new Linea(textoExtra, w);
+            linea->concatenar(extra);
+            delete extra;
+            cout << "Texto actual: ";
+            linea->print();
+        } else if (opcion == 6) {
+            cout << "Saliendo..." << endl;
+        }
+    delete linea;
+    return 0;
+}
